@@ -11,7 +11,7 @@ const rl = createInterface({
   //   console.log(`${answer}: command not found`)
   //   rl.close();
   // });
-  rl.setPrompt("$")
+  rl.setPrompt("$ ")
   rl.prompt()
   rl.on('line', (line)=>{
     console.log(`${line}: command not found`)
