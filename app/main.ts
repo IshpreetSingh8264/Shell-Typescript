@@ -27,7 +27,7 @@ rl.on('line', (line) => {
     try {
       process.chdir(dir)
     } catch (err) {
-      console.log(`cd: ${(err as Error).message}`)
+      console.log(`cd: ${dir}: No such file or directory`)
     }
     rl.prompt()
     return
