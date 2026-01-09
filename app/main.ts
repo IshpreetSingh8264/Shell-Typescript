@@ -45,6 +45,7 @@ rl.on('line', (line) => {
     }
     console.log(`${command}: not found`);
     rl.prompt()
+    return
   }
   const command = line.trim().split(" ")[0]
   const args = line.trim().split(" ").slice(1)
