@@ -52,7 +52,7 @@ rl.on('line', (line) => {
     const fullPath = path.join(dir, command)
     try {
       fs.accessSync(fullPath, fs.constants.X_OK)
-      const child = spawn(fullPath, args, { stdio: 'inherit' })
+      const child = spawn(fullPath, args, { stdio: 'inherit', argv0: command })
       child.on('exit', () => {
 
         rl.prompt();
