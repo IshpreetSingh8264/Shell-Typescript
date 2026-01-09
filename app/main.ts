@@ -1,16 +1,12 @@
 import { createInterface } from "readline";
+import path from "path";
+import fs from "fs";
 
 const rl = createInterface({
   input: process.stdin,
   output: process.stdout,
 });
 
-
-
-// rl.question("$ ", (answer) => {
-//   console.log(`${answer}: command not found`)
-//   rl.close();
-// });
 const builtincommands = ["echo", "exit", "type"]
 
 rl.setPrompt("$ ")
@@ -34,13 +30,27 @@ rl.on('line', (line) => {
     if (builtincommands.includes(command)) {
       console.log(`${command} is a shell builtin`);
       return rl.prompt()
-    } else {
-      console.log(`${command}: not found`);
-      return rl.prompt()
     }
+    const PATH = process.env.PATH || ""
+    const directories = PATH.split(path.delimiter)
+    for (const dir of directories) {
+      const fullPath = path.join(dir, command)
+      console.log(fullPath);
+      try {
+        fs.accessSync(fullPath, fs.constants.X_OK)
+        console.log(`${command} is ${fullPath}`);
+        rl.prompt();
+        return
+      }catch(e){
+
+      }
+    }
+    console.log(`${command}: not found`);
+    return rl.prompt()
+
   }
 
-    console.log(`${line}: command not found`)
-   rl.prompt()
+  console.log(`${line}: command not found`)
+  rl.prompt()
 })
 
