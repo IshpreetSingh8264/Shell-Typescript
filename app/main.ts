@@ -8,7 +8,7 @@ const rl = createInterface({
   output: process.stdout,
 });
 
-const builtincommands = ["echo", "exit", "type"]
+const builtincommands = ["echo", "exit", "type","pwd"]
 
 rl.setPrompt("$ ")
 rl.prompt()
