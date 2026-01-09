@@ -35,7 +35,7 @@ rl.on('line', (line) => {
     const directories = PATH.split(path.delimiter)
     for (const dir of directories) {
       const fullPath = path.join(dir, command)
-      console.log(fullPath);
+      // console.log(fullPath);
       try {
         fs.accessSync(fullPath, fs.constants.X_OK)
         console.log(`${command} is ${fullPath}`);
