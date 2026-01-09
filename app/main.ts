@@ -26,7 +26,9 @@ rl.on('line', (line) => {
     const dir = line.slice(3).trim()
     try {
       process.chdir(dir)
-    } catch {}
+    } catch (err) {
+      console.log(`cd: ${(err as Error).message}`)
+    }
     rl.prompt()
     return
   }
