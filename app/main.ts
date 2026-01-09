@@ -17,7 +17,12 @@ rl.on('line', (line) => {
   if (line === "exit") {
     return rl.close();
   }
-
+  if (line === "pwd") {
+    console.log(process.cwd())
+    rl.prompt()
+    return
+  }
+  
 
   if (line.startsWith("echo ")) {
     console.log(line.slice(5))
