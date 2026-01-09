@@ -8,7 +8,7 @@ const rl = createInterface({
   output: process.stdout,
 });
 
-const builtincommands = ["echo", "exit", "type","pwd"]
+const builtincommands = ["echo", "exit", "type", "pwd", "cd"]
 
 rl.setPrompt("$ ")
 rl.prompt()
@@ -22,7 +22,15 @@ rl.on('line', (line) => {
     rl.prompt()
     return
   }
-  
+  if (line.startsWith("cd ")) {
+    const dir = line.slice(3).trim()
+    try {
+      process.chdir(dir)
+    } catch {}
+    rl.prompt()
+    return
+  }
+
 
   if (line.startsWith("echo ")) {
     console.log(line.slice(5))
