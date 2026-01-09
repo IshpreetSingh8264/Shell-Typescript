@@ -25,6 +25,11 @@ rl.on('line', (line) => {
   if (line.startsWith("cd ")) {
     const dir = line.slice(3).trim()
     try {
+      if(dir === "~") {
+        process.chdir(process.env.HOME || "")
+        rl.prompt()
+        return
+      }
       process.chdir(dir)
     } catch (err) {
       console.log(`cd: ${dir}: No such file or directory`)
