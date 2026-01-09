@@ -43,6 +43,8 @@ rl.on('line', (line) => {
         return
       } catch {}
     }
+    console.log(`${line}: command not found`)
+    rl.prompt()
   }
   const command = line.trim().split(" ")[0]
   const args = line.trim().split(" ").slice(1)
