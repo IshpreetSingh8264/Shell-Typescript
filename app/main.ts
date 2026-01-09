@@ -1,6 +1,7 @@
 import { createInterface } from "readline";
 import path from "path";
 import fs from "fs";
+import { spawn } from "child_process";
 
 const rl = createInterface({
   input: process.stdin,
@@ -35,19 +36,30 @@ rl.on('line', (line) => {
     const directories = PATH.split(path.delimiter)
     for (const dir of directories) {
       const fullPath = path.join(dir, command)
-      // console.log(fullPath);
       try {
         fs.accessSync(fullPath, fs.constants.X_OK)
         console.log(`${command} is ${fullPath}`);
         rl.prompt();
         return
-      }catch(e){
-
-      }
+      } catch {}
     }
-    console.log(`${command}: not found`);
-    return rl.prompt()
+  }
+  const command = line.trim().split(" ")[0]
+  const args = line.trim().split(" ").slice(1)
+  const PATH = process.env.PATH || ""
+  const directories = PATH.split(path.delimiter)
+  for (const dir of directories) {
+    const fullPath = path.join(dir, command)
+    try {
+      fs.accessSync(fullPath, fs.constants.X_OK)
+      const child = spawn(fullPath, args, { stdio: 'inherit' })
+      child.on('exit', () => {
 
+        rl.prompt();
+      })
+      return
+    } catch{}
+    
   }
 
   console.log(`${line}: command not found`)
