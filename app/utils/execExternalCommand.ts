@@ -12,7 +12,7 @@ export function execExternalCommand(
 
         child.on("error", (err) => {
             // This happens if command does not exist or is not executable
-            console.error(`${command}: ${err.message}`);
+            console.error(`${command}: command not found`);
             resolve();
         });
 
