@@ -1,21 +1,24 @@
-import { spawn } from "child_process"
+import { spawn } from "child_process";
 
-export async function execExternalCommand(command: string, args: string[]): Promise<void> {
-    return new Promise((resolve, reject)=>{
-        const child = spawn(command, args, {stdio: "inherit", shell: true})
-    
-        child.on("error", (err) => {
-            console.error(`Error executing command: ${err.message}`);
-            reject(err);
+export function execExternalCommand(
+    command: string,
+    args: string[]
+): Promise<void> {
+    return new Promise((resolve) => {
+        const child = spawn(command, args, {
+            stdio: "inherit",
+            argv0: command, // important: argv[0] is the user-typed command
         });
-        child.on("close",(code)=>{
-            if (code !== 0) {
-                console.error(`Command exited with code ${code}`);
-                reject(new Error(`Command exited with code ${code}`)); 
-            }else{
-                resolve();
-            }
+
+        child.on("error", (err) => {
+            // This happens if command does not exist or is not executable
+            console.error(`${command}: ${err.message}`);
+            resolve();
+        });
+
+        child.on("exit", () => {
+            // Exit codes are NOT errors in shells
+            resolve();
         });
     });
-
-        }
+}

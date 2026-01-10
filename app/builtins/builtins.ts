@@ -38,14 +38,4 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
         }
         console.log(`${command}: not found`);
     },
-    cat: (args:string[]) => {
-        const fs = require('fs');
-        const filePath = args[0];
-        try {
-            const data = fs.readFileSync(filePath, 'utf8');
-            console.log(data);
-        } catch (err) {
-            console.log(`cat: ${filePath}: No such file or directory`);
-        }
-    },
 };
