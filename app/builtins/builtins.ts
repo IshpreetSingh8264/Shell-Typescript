@@ -9,13 +9,20 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
     pwd:()=>{
         console.log(process.cwd());
     },
-    cd:(args:string[])=>{
+    cd: (args: string[]) => {
         const dir = args[0];
-        if (dir === "~"){
-            process.chdir(process.env.HOME || "");
-            return;
-        }else{
-            process.chdir(dir);
+        try {
+            if (dir === "~") {
+                process.chdir(process.env.HOME || "");
+            } else {
+                process.chdir(dir);
+            }
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+                console.error(`cd: ${dir}: No such file or directory`);
+            } else {
+                console.error(`cd: ${dir}: ${(error as Error).message}`);
+            }
         }
     },
     type:(args:string[])=>{
