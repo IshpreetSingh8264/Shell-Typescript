@@ -3,7 +3,6 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
         console.log(args.join(" "));
     },
     exit: () => {
-        console.log("Exiting shell...");
         process.exit(0);
     },
     pwd:()=>{
