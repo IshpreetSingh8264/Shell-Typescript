@@ -13,7 +13,24 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
 
     if (builtInCommands.hasOwnProperty(command)) {
         // Execute built-in command
-        await builtInCommands[command](args);
+        if (outputFile) {
+            // Redirect output of built-in commands
+            const outputStream = createWriteStream(outputFile, { flags: "w" });
+            const originalConsoleLog = console.log;
+
+            // Temporarily override console.log to redirect output
+            console.log = (message?: any, ...optionalParams: any[]) => {
+                outputStream.write(`${message}\n`);
+            };
+
+            await builtInCommands[command](args);
+
+            // Restore original console.log
+            console.log = originalConsoleLog;
+            outputStream.end();
+        } else {
+            await builtInCommands[command](args);
+        }
     } else {
         // Execute external command
         try {
@@ -29,7 +46,7 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
             if (error instanceof Error) {
                 console.error(`Failed to execute command: ${error.message}`);
             } else {
-                console.error(`Failed to execute command: ${String(error)}`);
+                console.error("Failed to execute command: An unknown error occurred.");
             }
         }
     }
