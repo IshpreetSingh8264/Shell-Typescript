@@ -45,10 +45,24 @@ echo "Hello   world" foo\ bar 'baz'
 
 
 
-export function parser(tokens:Token): CommandStructure {
-    
+
+export function parser(tokens: string[]): CommandStructure {
+  const redirectionIndex = tokens.indexOf(">");
+
+  if (redirectionIndex !== -1) {
+    // Extract the output file and remove the `>` symbol and file from tokens
+    const outputFile = tokens[redirectionIndex + 1];
+    const commandTokens = tokens.slice(0, redirectionIndex);
+
     return {
-        command: tokens[0] || '',
-        args: tokens.slice(1) || []
+      command: commandTokens[0],
+      args: commandTokens.slice(1),
+      outputFile,
     };
+  }
+
+  return {
+    command: tokens[0],
+    args: tokens.slice(1),
+  };
 }

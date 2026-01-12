@@ -1,9 +1,10 @@
 import { builtInCommands } from "../builtins/builtins";
 import type { CommandStructure } from "../types/types";
 import { execExternalCommand } from "../utils/execExternalCommand";
+import { createWriteStream } from "fs";
 
 export async function dispatcher(commandStructure: CommandStructure): Promise<void> {
-    const { command, args } = commandStructure;
+    const { command, args, outputFile } = commandStructure;
 
     if (!command) {
         console.error("Error: No command entered.");
@@ -16,12 +17,19 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
     } else {
         // Execute external command
         try {
-            await execExternalCommand(command, args);
+            if (outputFile) {
+                // Redirect output to the specified file
+                const outputStream = createWriteStream(outputFile, { flags: "w" });
+                await execExternalCommand(command, args, outputStream);
+                outputStream.end();
+            } else {
+                await execExternalCommand(command, args);
+            }
         } catch (error) {
             if (error instanceof Error) {
                 console.error(`Failed to execute command: ${error.message}`);
             } else {
-                console.error("Failed to execute command: An unknown error occurred.");
+                console.error(`Failed to execute command: ${String(error)}`);
             }
         }
     }

@@ -1,24 +1,34 @@
 import { spawn } from "child_process";
+import type { Writable } from "stream";
 
-export function execExternalCommand(
+export async function execExternalCommand(
     command: string,
-    args: string[]
+    args: string[],
+    outputStream?: Writable
 ): Promise<void> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
         const child = spawn(command, args, {
-            stdio: "inherit",
-            argv0: command, // important: argv[0] is the user-typed command
+            stdio: outputStream ? ["inherit", "pipe", "inherit"] : "inherit",
+            shell: true,
         });
 
-        child.on("error", (err) => {
-            // This happens if command does not exist or is not executable
+        if (outputStream) {
+            if (child.stdout) {
+                child.stdout.pipe(outputStream); // Redirect stdout to the output stream
+            }
+        }
+
+        child.on("error", () => {
             console.error(`${command}: command not found`);
             resolve();
         });
 
-        child.on("exit", () => {
-            // Exit codes are NOT errors in shells
-            resolve();
+        child.on("close", (code) => {
+            if (code !== 0) {
+                resolve();
+            } else {
+                resolve();
+            }
         });
     });
 }
