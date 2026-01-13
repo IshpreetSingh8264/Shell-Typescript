@@ -1,11 +1,7 @@
 import { spawn } from "child_process";
 import type { Writable } from "stream";
 
-export function execExternalCommand(
-    command: string,
-    args: string[],
-    outputStream?: Writable
-): Promise<void> {
+export function execExternalCommand(command: string,args: string[],outputStream?: Writable): Promise<void> {
     return new Promise((resolve) => {
         const child = spawn(command, args, {
             stdio: outputStream
