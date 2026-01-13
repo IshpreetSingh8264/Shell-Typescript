@@ -1,10 +1,11 @@
 import { builtInCommands } from "../builtins/builtins";
 import type { CommandStructure } from "../types/types";
 import { execExternalCommand } from "../utils/execExternalCommand";
+import fs from "fs";
 import { createWriteStream } from "fs";
 
 export async function dispatcher(commandStructure: CommandStructure): Promise<void> {
-    const { command, args, outputFile } = commandStructure;
+    const { command, args, redirections } = commandStructure;
 
     if (!command) {
         console.error("Error: No command entered.");
@@ -12,35 +13,88 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
     }
 
     if (builtInCommands.hasOwnProperty(command)) {
-        // Execute built-in command
-        if (outputFile) {
-            // Redirect output of built-in commands
-            const outputStream = createWriteStream(outputFile, { flags: "w" });
-            const originalConsoleLog = console.log;
+        let stdoutTarget: string | undefined;
+        let stderrTarget: string | undefined;
 
-            // Temporarily override console.log to redirect output
-            console.log = (message?: any, ...optionalParams: any[]) => {
-                outputStream.write(`${message}\n`);
+        for (const r of redirections) {
+            if (r.fd === 1) stdoutTarget = r.target;
+            if (r.fd === 2) stderrTarget = r.target;
+        }
+
+        const originalConsoleLog = console.log;
+        const originalConsoleError = console.error;
+
+        const stdoutStream = stdoutTarget ? createWriteStream(stdoutTarget, { flags: "w" }) : undefined;
+        const stderrStream = stderrTarget ? createWriteStream(stderrTarget, { flags: "w" }) : undefined;
+
+        if (stdoutStream) {
+            console.log = (message?: any, ..._optionalParams: any[]) => {
+                stdoutStream.write(`${message ?? ""}\n`);
             };
+        }
 
+        if (stderrStream) {
+            console.error = (message?: any, ..._optionalParams: any[]) => {
+                stderrStream.write(`${message ?? ""}\n`);
+            };
+        }
+
+        try {
             await builtInCommands[command](args);
-
-            // Restore original console.log
+        } finally {
             console.log = originalConsoleLog;
-            outputStream.end();
-        } else {
-            await builtInCommands[command](args);
+            console.error = originalConsoleError;
+            stdoutStream?.end();
+            stderrStream?.end();
         }
     } else {
         // Execute external command
         try {
-            if (outputFile) {
-                // Redirect output to the specified file
-                const outputStream = createWriteStream(outputFile, { flags: "w" });
-                await execExternalCommand(command, args, outputStream);
-                outputStream.end();
-            } else {
-                await execExternalCommand(command, args);
+            let stdout: "inherit" | number = "inherit";
+            let stderr: "inherit" | number = "inherit";
+            const fdsToClose: number[] = [];
+
+            const removeFromCloseList = (fd: number) => {
+                const idx = fdsToClose.indexOf(fd);
+                if (idx !== -1) fdsToClose.splice(idx, 1);
+            };
+
+            const closeFd = (fd: number) => {
+                try {
+                    fs.closeSync(fd);
+                } catch {
+                    // ignore
+                }
+            };
+
+            try {
+                for (const r of redirections) {
+                    const newFd = fs.openSync(r.target, "w");
+
+                    if (r.fd === 1) {
+                        if (typeof stdout === "number") {
+                            removeFromCloseList(stdout);
+                            closeFd(stdout);
+                        }
+                        stdout = newFd;
+                    }
+
+                    if (r.fd === 2) {
+                        if (typeof stderr === "number") {
+                            removeFromCloseList(stderr);
+                            closeFd(stderr);
+                        }
+                        stderr = newFd;
+                    }
+
+                    fdsToClose.push(newFd);
+                }
+
+                await execExternalCommand(command, args, ["inherit", stdout, stderr]);
+            } finally {
+                for (const fd of fdsToClose) {
+                    closeFd(fd);
+                }
             }
         } catch (error) {
             if (error instanceof Error) {

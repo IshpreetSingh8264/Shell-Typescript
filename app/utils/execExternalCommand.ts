@@ -1,18 +1,15 @@
 import { spawn } from "child_process";
-import type { Writable } from "stream";
 
-export function execExternalCommand(command: string,args: string[],outputStream?: Writable): Promise<void> {
+export function execExternalCommand(
+    command: string,
+    args: string[],
+    stdio: "inherit" | any[] = "inherit",
+): Promise<void> {
     return new Promise((resolve) => {
         const child = spawn(command, args, {
-            stdio: outputStream
-                ? ["inherit", "pipe", "inherit"] // stdout redirected
-                : "inherit",
+            stdio,
             argv0: command, // important for correctness
         });
-
-        if (outputStream && child.stdout) {
-            child.stdout.pipe(outputStream);
-        }
 
         child.on("error", () => {
             console.error(`${command}: command not found`);

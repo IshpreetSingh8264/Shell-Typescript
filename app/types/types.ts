@@ -1,5 +1,10 @@
+export type Redirection = {
+    fd: 1 | 2;
+    target: string;
+};
+
 export interface CommandStructure {
     command: string;
     args: string[];
-    outputFile?: string; // Add this field for redirection
+    redirections: Redirection[];
 }
