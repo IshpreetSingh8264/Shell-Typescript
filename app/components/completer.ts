@@ -24,6 +24,9 @@ export function completer(line: string): [string[], string] {
     // If we have a single match, readline will auto-complete it.
     // However, readline's default behavior with multiple matches is to show them.
     // We just return the array.
+    if (matches.length === 0) {
+        process.stdout.write("\x07");
+    }
     return [matches, partial];
   } else {
     // Argument completion (File paths)
@@ -72,6 +75,9 @@ export function completer(line: string): [string[], string] {
                         }
                     });
 
+                if (matches.length === 0) {
+                    process.stdout.write("\x07");
+                }
                 return [matches, partial];
             }
         }
@@ -79,6 +85,7 @@ export function completer(line: string): [string[], string] {
         // Ignore errors (e.g. permission denied, invalid path)
     }
 
+    process.stdout.write("\x07");
     return [[], partial];
   }
 }
