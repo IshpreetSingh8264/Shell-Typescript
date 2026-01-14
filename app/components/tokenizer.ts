@@ -20,7 +20,7 @@ export function tokenizer(input: string):string[] {
     // The VIP operators club, these bad boys get their own tokens
     const operators = new Set(['&&', '||', ';', '|', '&']);
     // The redirect operators, for when the data needs directions
-    const redirectOps = new Set(['<<', '>>', '>&', '&>', '<&', '2>&1', '2>', '1>']);
+    const redirectOps = new Set(['<<', '>>', '>&', '&>', '<&', '2>&1', '2>', '1>', '1>>', '2>>']);
 
     while (i < input.length) {
         const char = input[i]; // Current character, our main protagonist

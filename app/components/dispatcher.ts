@@ -14,26 +14,26 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
     }
 
     if (builtInCommands.hasOwnProperty(command)) {
-        let stdoutTarget: string | undefined;
-        let stderrTarget: string | undefined;
+        let stdoutTarget: { path: string, mode: "write" | "append" } | undefined;
+        let stderrTarget: { path: string, mode: "write" | "append" } | undefined;
 
         for (const r of redirections) {
-            if (r.fd === 1) stdoutTarget = r.target;
-            if (r.fd === 2) stderrTarget = r.target;
+            if (r.fd === 1) stdoutTarget = { path: r.target, mode: r.type };
+            if (r.fd === 2) stderrTarget = { path: r.target, mode: r.type };
         }
 
         const originalConsoleLog = console.log;
         const originalConsoleError = console.error;
 
-        const stdoutStream = stdoutTarget ? createWriteStream(stdoutTarget, { flags: "w" }) : undefined;
-        const stderrStream = stderrTarget ? createWriteStream(stderrTarget, { flags: "w" }) : undefined;
+        const stdoutStream = stdoutTarget ? createWriteStream(stdoutTarget.path, { flags: stdoutTarget.mode === "append" ? "a" : "w" }) : undefined;
+        const stderrStream = stderrTarget ? createWriteStream(stderrTarget.path, { flags: stderrTarget.mode === "append" ? "a" : "w" }) : undefined;
 
         if (stdoutTarget) {
-            const dir = path.dirname(stdoutTarget);
+            const dir = path.dirname(stdoutTarget.path);
             fs.mkdirSync(dir, { recursive: true });
         }
         if (stderrTarget) {
-            const dir = path.dirname(stderrTarget);
+            const dir = path.dirname(stderrTarget.path);
             fs.mkdirSync(dir, { recursive: true });
         }
 
@@ -83,7 +83,8 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
                     const dir = path.dirname(r.target);
                     fs.mkdirSync(dir, { recursive: true });
                     
-                    const newFd = fs.openSync(r.target, "w");
+                    const flags = r.type === "append" ? "a" : "w";
+                    const newFd = fs.openSync(r.target, flags);
 
                     if (r.fd === 1) {
                         if (typeof stdout === "number") {

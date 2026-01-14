@@ -7,7 +7,7 @@ export function parser(tokens: string[]): CommandStructure {
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i];
 
-    if (token === ">" || token === "1>" || token === "2>") {
+    if (token === ">" || token === "1>" || token === "2>" || token === ">>" || token === "1>>" || token === "2>>") {
       const target = tokens[i + 1];
       if (target === undefined) {
         // Incomplete redirection; treat as a normal token.
@@ -15,8 +15,10 @@ export function parser(tokens: string[]): CommandStructure {
         continue;
       }
 
-      const fd: 1 | 2 = token === "2>" ? 2 : 1;
-      redirections.push({ fd, target });
+      const fd: 1 | 2 = (token === "2>" || token === "2>>") ? 2 : 1;
+      const type: "write" | "append" = (token === ">>" || token === "1>>" || token === "2>>") ? "append" : "write";
+      
+      redirections.push({ fd, target, type });
       i++; // Skip target
       continue;
     }
