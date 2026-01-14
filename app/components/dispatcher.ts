@@ -2,6 +2,7 @@ import { builtInCommands } from "../builtins/builtins";
 import type { CommandStructure } from "../types/types";
 import { execExternalCommand } from "../utils/execExternalCommand";
 import fs from "fs";
+import path from "path";
 import { createWriteStream } from "fs";
 
 export async function dispatcher(commandStructure: CommandStructure): Promise<void> {
@@ -26,6 +27,15 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
 
         const stdoutStream = stdoutTarget ? createWriteStream(stdoutTarget, { flags: "w" }) : undefined;
         const stderrStream = stderrTarget ? createWriteStream(stderrTarget, { flags: "w" }) : undefined;
+
+        if (stdoutTarget) {
+            const dir = path.dirname(stdoutTarget);
+            fs.mkdirSync(dir, { recursive: true });
+        }
+        if (stderrTarget) {
+            const dir = path.dirname(stderrTarget);
+            fs.mkdirSync(dir, { recursive: true });
+        }
 
         if (stdoutStream) {
             console.log = (message?: any, ..._optionalParams: any[]) => {
@@ -69,6 +79,10 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
 
             try {
                 for (const r of redirections) {
+                    // Create parent directories if needed
+                    const dir = path.dirname(r.target);
+                    fs.mkdirSync(dir, { recursive: true });
+                    
                     const newFd = fs.openSync(r.target, "w");
 
                     if (r.fd === 1) {
