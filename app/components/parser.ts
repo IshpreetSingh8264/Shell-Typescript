@@ -1,6 +1,26 @@
 import type { CommandStructure, Redirection } from "../types/types";
 
-export function parser(tokens: string[]): CommandStructure {
+export function parser(tokens: string[]): CommandStructure[] {
+  const commands: CommandStructure[] = [];
+  let currentCommandTokens: string[] = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] === "|") {
+      commands.push(parseSingleCommand(currentCommandTokens));
+      currentCommandTokens = [];
+    } else {
+      currentCommandTokens.push(tokens[i]);
+    }
+  }
+  
+  if (currentCommandTokens.length > 0) {
+    commands.push(parseSingleCommand(currentCommandTokens));
+  }
+
+  return commands;
+}
+
+function parseSingleCommand(tokens: string[]): CommandStructure {
   const redirections: Redirection[] = [];
   const commandTokens: string[] = [];
 

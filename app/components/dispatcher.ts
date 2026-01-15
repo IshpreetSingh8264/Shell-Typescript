@@ -1,11 +1,77 @@
 import { builtInCommands } from "../builtins/builtins";
-import type { CommandStructure } from "../types/types";
+import type { CommandStructure, Redirection } from "../types/types";
 import { execExternalCommand } from "../utils/execExternalCommand";
 import fs from "fs";
 import path from "path";
 import { createWriteStream } from "fs";
 
-export async function dispatcher(commandStructure: CommandStructure): Promise<void> {
+export async function dispatcher(commands: CommandStructure[]): Promise<void> {
+    if (commands.length === 0) return;
+
+    if (commands.length === 1) {
+        await dispatchSingleCommand(commands[0]);
+        return;
+    }
+
+    let previousStdout: any = "inherit";
+    const promises: Promise<void>[] = [];
+
+    for (let i = 0; i < commands.length; i++) {
+        const cmdStruct = commands[i];
+        const isLast = i === commands.length - 1;
+        
+        if (builtInCommands.hasOwnProperty(cmdStruct.command)) {
+             await dispatchSingleCommand(cmdStruct);
+             previousStdout = null; 
+             continue;
+        }
+
+        let stdout: any = "inherit";
+        if (!isLast) {
+            stdout = "pipe";
+        }
+        
+        let stderr: any = "inherit";
+        let stdin = previousStdout === null ? "ignore" : previousStdout;
+
+        const fdsToClose: number[] = [];
+        
+        const closeFd = (fd: number) => {
+            try { fs.closeSync(fd); } catch {}
+        };
+
+        try {
+            for (const r of cmdStruct.redirections) {
+                const dir = path.dirname(r.target);
+                fs.mkdirSync(dir, { recursive: true });
+                
+                const flags = r.type === "append" ? "a" : "w";
+                const newFd = fs.openSync(r.target, flags);
+                fdsToClose.push(newFd);
+
+                if (r.fd === 1) stdout = newFd;
+                if (r.fd === 2) stderr = newFd;
+            }
+
+            const { promise, child } = execExternalCommand(cmdStruct.command, cmdStruct.args, [stdin, stdout, stderr]);
+            promises.push(promise);
+
+            if (!isLast) {
+                previousStdout = child.stdout;
+            }
+        } catch (err) {
+             console.error(`Error setting up command ${cmdStruct.command}:`, err);
+        } finally {
+             for (const fd of fdsToClose) {
+                 closeFd(fd);
+             }
+        }
+    }
+    
+    await Promise.all(promises);
+}
+
+async function dispatchSingleCommand(commandStructure: CommandStructure): Promise<void> {
     const { command, args, redirections } = commandStructure;
 
     if (!command) {
@@ -58,7 +124,6 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
             stderrStream?.end();
         }
     } else {
-        // Execute external command
         try {
             let stdout: "inherit" | number = "inherit";
             let stderr: "inherit" | number = "inherit";
@@ -79,7 +144,6 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
 
             try {
                 for (const r of redirections) {
-                    // Create parent directories if needed
                     const dir = path.dirname(r.target);
                     fs.mkdirSync(dir, { recursive: true });
                     
@@ -105,7 +169,8 @@ export async function dispatcher(commandStructure: CommandStructure): Promise<vo
                     fdsToClose.push(newFd);
                 }
 
-                await execExternalCommand(command, args, ["inherit", stdout, stderr]);
+                const { promise } = execExternalCommand(command, args, ["inherit", stdout, stderr]);
+                await promise;
             } finally {
                 for (const fd of fdsToClose) {
                     closeFd(fd);

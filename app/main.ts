@@ -1,10 +1,10 @@
-import { createInterface } from "readline";
+import { createInterface, Interface } from "readline";
 import { tokenizer } from "./components/tokenizer";
 import { parser } from "./components/parser";
 import { dispatcher } from "./components/dispatcher";
 import { completer } from "./components/completer";
 
-const rl = createInterface({
+const rl: Interface = createInterface({
   input: process.stdin,
   output: process.stdout,
   completer: (line: string) => completer(line, rl),
