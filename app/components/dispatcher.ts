@@ -32,7 +32,18 @@ export async function dispatcher(commands: CommandStructure[]): Promise<void> {
         }
         
         let stderr: any = "inherit";
-        let stdin = previousStdout === null ? "ignore" : previousStdout;
+        
+        let spawnStdin: any = "inherit";
+        let inputStreamToPipe: any = null;
+
+        if (previousStdout === null) {
+            spawnStdin = "ignore";
+        } else if (typeof previousStdout !== "string") {
+            spawnStdin = "pipe";
+            inputStreamToPipe = previousStdout;
+        } else {
+            spawnStdin = previousStdout;
+        }
 
         const fdsToClose: number[] = [];
         
@@ -53,8 +64,12 @@ export async function dispatcher(commands: CommandStructure[]): Promise<void> {
                 if (r.fd === 2) stderr = newFd;
             }
 
-            const { promise, child } = execExternalCommand(cmdStruct.command, cmdStruct.args, [stdin, stdout, stderr]);
+            const { promise, child } = execExternalCommand(cmdStruct.command, cmdStruct.args, [spawnStdin, stdout, stderr]);
             promises.push(promise);
+
+            if (inputStreamToPipe && child.stdin) {
+                inputStreamToPipe.pipe(child.stdin);
+            }
 
             if (!isLast) {
                 previousStdout = child.stdout;
