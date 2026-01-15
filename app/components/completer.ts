@@ -3,7 +3,30 @@ import path from "path";
 import { builtInCommands } from "../builtins/builtins";
 import { getExecutables } from "../utils/pathCache";
 
+let lastLine = "";
+let tabCount = 0;
+
+// Helper to calculate common prefix
+function getCommonPrefix(strings: string[]): string {
+    if (strings.length === 0) return "";
+    let prefix = strings[0];
+    for (let i = 1; i < strings.length; i++) {
+        while (!strings[i].startsWith(prefix)) {
+            prefix = prefix.slice(0, -1);
+            if (prefix === "") return "";
+        }
+    }
+    return prefix;
+}
+
 export function completer(line: string): [string[], string] {
+  // Reset tab count if line changed
+  if (line !== lastLine) {
+      tabCount = 0;
+      lastLine = line;
+  }
+  tabCount++;
+
   // Check if we are completing the first word (command) or subsequent words (arguments)
   const isCommand = !line.trimStart().includes(" ");
 
@@ -15,18 +38,36 @@ export function completer(line: string): [string[], string] {
     // Use a Set to deduplicate in case a builtin is also in PATH
     const allCommands = Array.from(new Set([...builtins, ...executables]));
 
-    const matches = allCommands
+    let matches = allCommands
         .filter((c) => c.startsWith(partial))
-        .sort()
-        .map(c => c + " "); // Add space for convenience
+        .sort();
 
-    // If we have multiple matches, we should return them all.
-    // If we have a single match, readline will auto-complete it.
-    // However, readline's default behavior with multiple matches is to show them.
-    // We just return the array.
+    if (matches.length === 1) {
+        matches = matches.map(c => c + " ");
+    }
+
     if (matches.length === 0) {
         process.stdout.write("\x07");
+        return [[], partial];
     }
+
+    if (matches.length > 1) {
+        const commonPrefix = getCommonPrefix(matches);
+        // If we can extend the current partial, let readline do it (it will auto-complete to common prefix)
+        if (commonPrefix.length > partial.length) {
+            return [matches, partial];
+        }
+        
+        // If we are already at the common prefix, we need the double-tab logic
+        if (tabCount === 1) {
+            process.stdout.write("\x07");
+            return [[], partial]; // Return empty to suppress default list behavior
+        }
+        
+        // On second tab, return matches so readline displays them
+        return [matches, partial];
+    }
+
     return [matches, partial];
   } else {
     // Argument completion (File paths)
@@ -77,7 +118,24 @@ export function completer(line: string): [string[], string] {
 
                 if (matches.length === 0) {
                     process.stdout.write("\x07");
+                    return [[], partial];
                 }
+
+                if (matches.length > 1) {
+                    // For arguments, we might want similar behavior, but the requirement was specific to executables.
+                    // However, consistent behavior is good.
+                    // But let's stick to the requirement for executables first.
+                    // If we want to apply it to arguments too:
+                    /*
+                    const commonPrefix = getCommonPrefix(matches);
+                    // Note: matches here are full paths or names, we need to be careful.
+                    // But readline handles the prefix logic based on the returned array.
+                    // If we return matches, readline calculates common prefix of the returned strings.
+                    
+                    // Let's just return matches for arguments for now as per previous stage.
+                    */
+                }
+
                 return [matches, partial];
             }
         }
