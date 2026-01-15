@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { builtInCommands } from "../builtins/builtins";
 import { getExecutables } from "../utils/pathCache";
+import type { Interface } from "readline";
 
 let lastLine = "";
 let tabCount = 0;
@@ -19,7 +20,7 @@ function getCommonPrefix(strings: string[]): string {
     return prefix;
 }
 
-export function completer(line: string): [string[], string] {
+export function completer(line: string, rl?: Interface): [string[], string] {
   // Reset tab count if line changed
   if (line !== lastLine) {
       tabCount = 0;
@@ -64,8 +65,14 @@ export function completer(line: string): [string[], string] {
             return [[], partial]; // Return empty to suppress default list behavior
         }
         
-        // On second tab, return matches so readline displays them
-        return [matches, partial];
+        // On second tab, print matches manually and redraw prompt
+        process.stdout.write("\n");
+        process.stdout.write(matches.join("  "));
+        process.stdout.write("\n");
+        
+        rl?.prompt(true);
+        
+        return [[], partial];
     }
 
     return [matches, partial];

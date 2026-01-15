@@ -7,7 +7,7 @@ import { completer } from "./components/completer";
 const rl = createInterface({
   input: process.stdin,
   output: process.stdout,
-  completer,
+  completer: (line: string) => completer(line, rl),
 });
 
 
