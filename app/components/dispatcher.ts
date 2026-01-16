@@ -128,8 +128,22 @@ export async function dispatcher(commands: CommandStructure[]): Promise<void> {
                 fdsToClose.push(fd);
             }
 
+            // Input
+            let spawnStdin: any = stdinStream;
+            let inputStreamToPipe: Readable | null = null;
+
+            if (stdinStream instanceof Readable) {
+                spawnStdin = 'pipe';
+                inputStreamToPipe = stdinStream;
+            }
+
             try {
-                const { promise, child } = execExternalCommand(cmdStruct.command, cmdStruct.args, [stdinStream, stdout, stderr]);
+                const { promise, child } = execExternalCommand(cmdStruct.command, cmdStruct.args, [spawnStdin, stdout, stderr]);
+                
+                if (inputStreamToPipe && child.stdin) {
+                    inputStreamToPipe.pipe(child.stdin);
+                }
+
                 promises.push(promise);
                 
                 if (pipingToNext) {
