@@ -1,202 +1,156 @@
 import { builtInCommands } from "../builtins/builtins";
-import type { CommandStructure, Redirection } from "../types/types";
+import type { CommandStructure } from "../types/types";
 import { execExternalCommand } from "../utils/execExternalCommand";
 import fs from "fs";
 import path from "path";
 import { createWriteStream } from "fs";
+import { PassThrough, Readable, Writable } from "stream";
 
 export async function dispatcher(commands: CommandStructure[]): Promise<void> {
-    if (commands.length === 0) return;
-
-    if (commands.length === 1) {
-        await dispatchSingleCommand(commands[0]);
-        return;
-    }
-
-    let previousStdout: any = "inherit";
+    let previousStdout: Readable | null = null;
     const promises: Promise<void>[] = [];
 
     for (let i = 0; i < commands.length; i++) {
         const cmdStruct = commands[i];
         const isLast = i === commands.length - 1;
         
-        if (builtInCommands.hasOwnProperty(cmdStruct.command)) {
-             await dispatchSingleCommand(cmdStruct);
-             previousStdout = null; 
-             continue;
+        // Determine Input
+        let stdinStream: Readable | "ignore" | "inherit" = "inherit";
+        if (i > 0) {
+            stdinStream = previousStdout || "ignore";
         }
 
-        let stdout: any = "inherit";
-        if (!isLast) {
-            stdout = "pipe";
-        }
+        // Determine Output
+        const pipingToNext = !isLast;
         
-        let stderr: any = "inherit";
-        
-        let spawnStdin: any = "inherit";
-        let inputStreamToPipe: any = null;
-
-        if (previousStdout === null) {
-            spawnStdin = "ignore";
-        } else if (typeof previousStdout !== "string") {
-            spawnStdin = "pipe";
-            inputStreamToPipe = previousStdout;
-        } else {
-            spawnStdin = previousStdout;
-        }
-
-        const fdsToClose: number[] = [];
-        
-        const closeFd = (fd: number) => {
-            try { fs.closeSync(fd); } catch {}
-        };
-
-        try {
-            for (const r of cmdStruct.redirections) {
-                const dir = path.dirname(r.target);
-                fs.mkdirSync(dir, { recursive: true });
-                
-                const flags = r.type === "append" ? "a" : "w";
-                const newFd = fs.openSync(r.target, flags);
-                fdsToClose.push(newFd);
-
-                if (r.fd === 1) stdout = newFd;
-                if (r.fd === 2) stderr = newFd;
-            }
-
-            const { promise, child } = execExternalCommand(cmdStruct.command, cmdStruct.args, [spawnStdin, stdout, stderr]);
-            promises.push(promise);
-
-            if (inputStreamToPipe && child.stdin) {
-                inputStreamToPipe.pipe(child.stdin);
-            }
-
-            if (!isLast) {
-                previousStdout = child.stdout;
-            }
-        } catch (err) {
-             console.error(`Error setting up command ${cmdStruct.command}:`, err);
-        } finally {
-             for (const fd of fdsToClose) {
-                 closeFd(fd);
-             }
-        }
-    }
-    
-    await Promise.all(promises);
-}
-
-async function dispatchSingleCommand(commandStructure: CommandStructure): Promise<void> {
-    const { command, args, redirections } = commandStructure;
-
-    if (!command) {
-        console.error("Error: No command entered.");
-        return;
-    }
-
-    if (builtInCommands.hasOwnProperty(command)) {
+        // Check for redirections
         let stdoutTarget: { path: string, mode: "write" | "append" } | undefined;
         let stderrTarget: { path: string, mode: "write" | "append" } | undefined;
 
-        for (const r of redirections) {
+        for (const r of cmdStruct.redirections) {
             if (r.fd === 1) stdoutTarget = { path: r.target, mode: r.type };
             if (r.fd === 2) stderrTarget = { path: r.target, mode: r.type };
         }
 
-        const originalConsoleLog = console.log;
-        const originalConsoleError = console.error;
+        if (builtInCommands.hasOwnProperty(cmdStruct.command)) {
+            // Builtin Command
+            
+            // Handle Input (Drain if exists, as builtins don't use it yet)
+            if (stdinStream instanceof Readable) {
+                stdinStream.resume();
+            }
 
-        const stdoutStream = stdoutTarget ? createWriteStream(stdoutTarget.path, { flags: stdoutTarget.mode === "append" ? "a" : "w" }) : undefined;
-        const stderrStream = stderrTarget ? createWriteStream(stderrTarget.path, { flags: stderrTarget.mode === "append" ? "a" : "w" }) : undefined;
+            // Handle Output
+            let stdoutStream: Writable = process.stdout;
+            let stderrStream: Writable = process.stderr;
+            let nextInput: Readable | null = null;
 
-        if (stdoutTarget) {
-            const dir = path.dirname(stdoutTarget.path);
-            fs.mkdirSync(dir, { recursive: true });
-        }
-        if (stderrTarget) {
-            const dir = path.dirname(stderrTarget.path);
-            fs.mkdirSync(dir, { recursive: true });
-        }
-
-        if (stdoutStream) {
-            console.log = (message?: any, ..._optionalParams: any[]) => {
-                stdoutStream.write(`${message ?? ""}\n`);
-            };
-        }
-
-        if (stderrStream) {
-            console.error = (message?: any, ..._optionalParams: any[]) => {
-                stderrStream.write(`${message ?? ""}\n`);
-            };
-        }
-
-        try {
-            await builtInCommands[command](args);
-        } finally {
-            console.log = originalConsoleLog;
-            console.error = originalConsoleError;
-            stdoutStream?.end();
-            stderrStream?.end();
-        }
-    } else {
-        try {
-            let stdout: "inherit" | number = "inherit";
-            let stderr: "inherit" | number = "inherit";
-            const fdsToClose: number[] = [];
-
-            const removeFromCloseList = (fd: number) => {
-                const idx = fdsToClose.indexOf(fd);
-                if (idx !== -1) fdsToClose.splice(idx, 1);
-            };
-
-            const closeFd = (fd: number) => {
-                try {
-                    fs.closeSync(fd);
-                } catch {
-                    // ignore
+            // If piping to next and no explicit redirection, create a pass-through
+            if (pipingToNext && !stdoutTarget) {
+                const pass = new PassThrough();
+                stdoutStream = pass;
+                nextInput = pass;
+            } else if (stdoutTarget) {
+                // File redirection
+                const dir = path.dirname(stdoutTarget.path);
+                fs.mkdirSync(dir, { recursive: true });
+                stdoutStream = createWriteStream(stdoutTarget.path, { flags: stdoutTarget.mode === "append" ? "a" : "w" });
+                
+                if (pipingToNext) {
+                    // If redirected to file, pipe gets nothing (empty stream)
+                    const pass = new PassThrough();
+                    pass.end();
+                    nextInput = pass;
                 }
+            }
+
+            if (stderrTarget) {
+                const dir = path.dirname(stderrTarget.path);
+                fs.mkdirSync(dir, { recursive: true });
+                stderrStream = createWriteStream(stderrTarget.path, { flags: stderrTarget.mode === "append" ? "a" : "w" });
+            }
+
+            // Monkey patch console
+            const originalLog = console.log;
+            const originalError = console.error;
+
+            console.log = (...args: any[]) => {
+                stdoutStream.write(args.join(" ") + "\n");
+            };
+            console.error = (...args: any[]) => {
+                stderrStream.write(args.join(" ") + "\n");
             };
 
             try {
-                for (const r of redirections) {
-                    const dir = path.dirname(r.target);
-                    fs.mkdirSync(dir, { recursive: true });
-                    
-                    const flags = r.type === "append" ? "a" : "w";
-                    const newFd = fs.openSync(r.target, flags);
-
-                    if (r.fd === 1) {
-                        if (typeof stdout === "number") {
-                            removeFromCloseList(stdout);
-                            closeFd(stdout);
-                        }
-                        stdout = newFd;
-                    }
-
-                    if (r.fd === 2) {
-                        if (typeof stderr === "number") {
-                            removeFromCloseList(stderr);
-                            closeFd(stderr);
-                        }
-                        stderr = newFd;
-                    }
-
-                    fdsToClose.push(newFd);
-                }
-
-                const { promise } = execExternalCommand(command, args, ["inherit", stdout, stderr]);
-                await promise;
+                await builtInCommands[cmdStruct.command](cmdStruct.args);
+            } catch (e) {
+                console.error(e);
             } finally {
-                for (const fd of fdsToClose) {
-                    closeFd(fd);
+                console.log = originalLog;
+                console.error = originalError;
+                
+                if (stdoutStream !== process.stdout && stdoutStream instanceof Writable) {
+                     stdoutStream.end();
+                }
+                if (stderrStream !== process.stderr && stderrStream instanceof Writable) {
+                     stderrStream.end();
                 }
             }
-        } catch (error) {
-            if (error instanceof Error) {
-                console.error(`Failed to execute command: ${error.message}`);
-            } else {
-                console.error("Failed to execute command: An unknown error occurred.");
+            
+            previousStdout = nextInput;
+
+        } else {
+            // External Command
+            
+            let stdout: any = "inherit";
+            let stderr: any = "inherit";
+            const fdsToClose: number[] = [];
+
+            // Handle Output Redirection
+            if (stdoutTarget) {
+                const dir = path.dirname(stdoutTarget.path);
+                fs.mkdirSync(dir, { recursive: true });
+                const flags = stdoutTarget.mode === "append" ? "a" : "w";
+                const fd = fs.openSync(stdoutTarget.path, flags);
+                stdout = fd;
+                fdsToClose.push(fd);
+            } else if (pipingToNext) {
+                stdout = "pipe";
+            }
+
+            // Handle Stderr Redirection
+            if (stderrTarget) {
+                const dir = path.dirname(stderrTarget.path);
+                fs.mkdirSync(dir, { recursive: true });
+                const flags = stderrTarget.mode === "append" ? "a" : "w";
+                const fd = fs.openSync(stderrTarget.path, flags);
+                stderr = fd;
+                fdsToClose.push(fd);
+            }
+
+            try {
+                const { promise, child } = execExternalCommand(cmdStruct.command, cmdStruct.args, [stdinStream, stdout, stderr]);
+                promises.push(promise);
+                
+                if (pipingToNext) {
+                    if (stdout === "pipe") {
+                        previousStdout = child.stdout;
+                    } else {
+                        // Redirected to file, so next command gets empty input
+                        const pass = new PassThrough();
+                        pass.end();
+                        previousStdout = pass;
+                    }
+                }
+            } catch (err) {
+                console.error(`Error starting ${cmdStruct.command}:`, err);
+            } finally {
+                for (const fd of fdsToClose) {
+                    try { fs.closeSync(fd); } catch {}
+                }
             }
         }
     }
+
+    await Promise.all(promises);
 }
