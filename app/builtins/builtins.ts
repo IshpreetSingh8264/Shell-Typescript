@@ -1,9 +1,17 @@
+import { getHistory } from "../utils/history";
+
 export const builtInCommands: { [key: string]: (args: string[]) => void | Promise<void> } = {
     echo: (args: string[]) => {
         console.log(args.join(" "));
     },
     exit: () => {
         process.exit(0);
+    },
+    history: () => {
+        const hist = getHistory();
+        hist.forEach((cmd, index) => {
+            console.log(`    ${index + 1}  ${cmd}`);
+        });
     },
     pwd:()=>{
         console.log(process.cwd());
