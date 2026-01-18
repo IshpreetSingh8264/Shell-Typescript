@@ -7,11 +7,20 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
     exit: () => {
         process.exit(0);
     },
-    history: () => {
+    history: (args: string[]) => {
         const hist = getHistory();
-        hist.forEach((cmd, index) => {
-            console.log(`    ${index + 1}  ${cmd}`);
-        });
+        let startIndex = 0;
+
+        if (args.length > 0) {
+            const n = parseInt(args[0], 10);
+            if (!isNaN(n) && n > 0) {
+                startIndex = Math.max(0, hist.length - n);
+            }
+        }
+
+        for (let i = startIndex; i < hist.length; i++) {
+            console.log(`    ${i + 1}  ${hist[i]}`);
+        }
     },
     pwd:()=>{
         console.log(process.cwd());
