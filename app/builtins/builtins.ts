@@ -32,6 +32,19 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
             return;
         }
 
+        if (args.length > 0 && args[0] === '-w') {
+            const path = args[1];
+            if (path) {
+                try {
+                    const hist = getHistory();
+                    fs.writeFileSync(path, hist.join('\n'));
+                } catch (e) {
+                    console.error(`history: ${path}: ${(e as Error).message}`);
+                }
+            }
+            return;
+        }
+
         const hist = getHistory();
         let startIndex = 0;
 

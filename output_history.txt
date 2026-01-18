@@ -1,0 +1,3 @@
+cmd1
+cmd2
+history -w output_history.txt
