@@ -1,4 +1,5 @@
-import { getHistory } from "../utils/history";
+import { getHistory, addToHistory } from "../utils/history";
+import fs from "fs";
 
 export const builtInCommands: { [key: string]: (args: string[]) => void | Promise<void> } = {
     echo: (args: string[]) => {
@@ -8,6 +9,29 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
         process.exit(0);
     },
     history: (args: string[]) => {
+        if (args.length > 0 && args[0] === '-r') {
+            const path = args[1];
+            if (path) {
+                try {
+                    const content = fs.readFileSync(path, 'utf-8');
+                    const lines = content.split('\n');
+                    for (const line of lines) {
+                        addToHistory(line);
+                    }
+                } catch (e) {
+                    // Fail silently or log error? Standard shell might complain if file not found but prompt doesn't specify.
+                    // But for debugging let's log if it's not ENOENT maybe?
+                    // The prompt says "Read history from file".
+                    // If file doesn't exist, usually history -r does nothing or complains.
+                    // I'll log error for now as it helps debugging.
+                    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') {
+                         console.error(`history: ${path}: ${(e as Error).message}`);
+                    }
+                }
+            }
+            return;
+        }
+
         const hist = getHistory();
         let startIndex = 0;
 
