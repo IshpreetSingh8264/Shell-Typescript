@@ -45,6 +45,19 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
             return;
         }
 
+        if (args.length > 0 && args[0] === '-a') {
+            const path = args[1];
+            if (path) {
+                try {
+                    const hist = getHistory();
+                    fs.appendFileSync(path, hist.join('\n') + '\n');
+                } catch (e) {
+                    console.error(`history: ${path}: ${(e as Error).message}`);
+                }
+            }
+            return;
+        }
+
         const hist = getHistory();
         let startIndex = 0;
 

@@ -1,0 +1,4 @@
+existing_line
+cmd1
+cmd2
+history -a append_test.txt
