@@ -37,7 +37,7 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
             if (path) {
                 try {
                     const hist = getHistory();
-                    fs.writeFileSync(path, hist.join('\n'));
+                    fs.writeFileSync(path, hist.join('\n') + '\n');
                 } catch (e) {
                     console.error(`history: ${path}: ${(e as Error).message}`);
                 }
