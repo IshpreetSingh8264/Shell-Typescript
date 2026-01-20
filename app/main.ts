@@ -4,6 +4,7 @@ import { parser } from "./components/parser";
 import { dispatcher } from "./components/dispatcher";
 import { completer } from "./components/completer";
 import { addToHistory } from "./utils/history";
+import fs from "fs";
 
 const rl: Interface = createInterface({
   input: process.stdin,
@@ -11,6 +12,18 @@ const rl: Interface = createInterface({
   completer: (line: string) => completer(line, rl),
 });
 
+// Load history from HISTFILE if available
+const histFile = process.env.HISTFILE;
+if (histFile && fs.existsSync(histFile)) {
+  try {
+    const content = fs.readFileSync(histFile, 'utf-8');
+    content.split('\n').forEach(line => {
+      if (line) addToHistory(line);
+    });
+  } catch (e) {
+    // Ignore errors
+  }
+}
 
 rl.setPrompt("$ ")
 rl.prompt()
