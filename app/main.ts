@@ -3,7 +3,7 @@ import { tokenizer } from "./components/tokenizer";
 import { parser } from "./components/parser";
 import { dispatcher } from "./components/dispatcher";
 import { completer } from "./components/completer";
-import { addToHistory, markHistoryAsAppended } from "./utils/history";
+import { addToHistory, markHistoryAsAppended, getNewHistory } from "./utils/history";
 import fs from "fs";
 
 const rl: Interface = createInterface({
@@ -25,6 +25,24 @@ if (histFile && fs.existsSync(histFile)) {
     // Ignore errors
   }
 }
+
+function saveHistory() {
+  if (histFile) {
+    try {
+      const newHist = getNewHistory();
+      if (newHist.length > 0) {
+        fs.appendFileSync(histFile, newHist.join('\n') + '\n');
+        markHistoryAsAppended();
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+  }
+}
+
+process.on('exit', () => {
+  saveHistory();
+});
 
 rl.setPrompt("$ ")
 rl.prompt()
