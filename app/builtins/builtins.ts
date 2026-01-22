@@ -1,4 +1,4 @@
-import { getHistory, addToHistory } from "../utils/history";
+import { getHistory, addToHistory, getNewHistory, markHistoryAsAppended } from "../utils/history";
 import fs from "fs";
 
 export const builtInCommands: { [key: string]: (args: string[]) => void | Promise<void> } = {
@@ -49,8 +49,11 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
             const path = args[1];
             if (path) {
                 try {
-                    const hist = getHistory();
-                    fs.appendFileSync(path, hist.join('\n') + '\n');
+                    const newHist = getNewHistory();
+                    if (newHist.length > 0) {
+                        fs.appendFileSync(path, newHist.join('\n') + '\n');
+                        markHistoryAsAppended();
+                    }
                 } catch (e) {
                     console.error(`history: ${path}: ${(e as Error).message}`);
                 }

@@ -1,0 +1,6 @@
+existing_line
+cmd1
+cmd2
+history -a append_test_2.txt
+cmd3
+history -a append_test_2.txt

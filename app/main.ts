@@ -3,7 +3,7 @@ import { tokenizer } from "./components/tokenizer";
 import { parser } from "./components/parser";
 import { dispatcher } from "./components/dispatcher";
 import { completer } from "./components/completer";
-import { addToHistory } from "./utils/history";
+import { addToHistory, markHistoryAsAppended } from "./utils/history";
 import fs from "fs";
 
 const rl: Interface = createInterface({
@@ -20,6 +20,7 @@ if (histFile && fs.existsSync(histFile)) {
     content.split('\n').forEach(line => {
       if (line) addToHistory(line);
     });
+    markHistoryAsAppended();
   } catch (e) {
     // Ignore errors
   }

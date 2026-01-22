@@ -1,4 +1,5 @@
 export const history: string[] = [];
+let lastAppendedIndex = 0;
 
 export function addToHistory(line: string) {
     if (line.trim()) {
@@ -8,4 +9,12 @@ export function addToHistory(line: string) {
 
 export function getHistory() {
     return history;
+}
+
+export function getNewHistory() {
+    return history.slice(lastAppendedIndex);
+}
+
+export function markHistoryAsAppended() {
+    lastAppendedIndex = history.length;
 }
