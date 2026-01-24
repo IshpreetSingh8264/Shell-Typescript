@@ -1,1 +1,15 @@
 node_modules/
+dist/
+
+# CodeCrafters scratch / dev artifacts
+test
+test_fs.txt
+*_test.txt
+*_test_*.txt
+*_hist*.txt
+myhistory.txt
+output_history.txt
+startup_hist.txt
+exit_test.txt
+*.db
+*.rdb
