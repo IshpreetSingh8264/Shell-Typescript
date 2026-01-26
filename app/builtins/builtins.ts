@@ -84,7 +84,12 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
         console.log(process.cwd());
     },
     cd: (args: string[]) => {
-        const dir = args[0];
+        // `cd` with no argument goes home, like every other shell.
+        const dir = args.length > 0 ? args[0] : process.env.HOME;
+        if (!dir) {
+            console.error("cd: HOME not set");
+            return;
+        }
         try {
             if (dir === "~") {
                 process.chdir(process.env.HOME || "");

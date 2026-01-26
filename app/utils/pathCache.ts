@@ -19,10 +19,14 @@ export function getExecutables(): Set<string> {
       const files = fs.readdirSync(dir, { withFileTypes: true });
       for (const file of files) {
         if (file.isFile() || file.isSymbolicLink()) {
-            // On Linux/Unix, we should check for executable permission, 
-            // but simply listing files in PATH is usually a good enough approximation for completion
-            // and much faster than accessSync on every file.
+          // Listing a directory is not enough: anything without the exec bit
+          // cannot be run, so offering it as a completion is wrong.
+          try {
+            fs.accessSync(path.join(dir, file.name), fs.constants.X_OK);
             executableCache.add(file.name);
+          } catch {
+            // Not executable - not a command.
+          }
         }
       }
     } catch (error) {

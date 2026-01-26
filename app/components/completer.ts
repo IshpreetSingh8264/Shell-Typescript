@@ -48,7 +48,6 @@ export function completer(line: string, rl?: Interface): [string[], string] {
     }
 
     if (matches.length === 0) {
-        process.stdout.write("\x07");
         return [[], partial];
     }
 
@@ -61,7 +60,6 @@ export function completer(line: string, rl?: Interface): [string[], string] {
         
         // If we are already at the common prefix, we need the double-tab logic
         if (tabCount === 1) {
-            process.stdout.write("\x07");
             return [[], partial]; // Return empty to suppress default list behavior
         }
         
@@ -124,7 +122,6 @@ export function completer(line: string, rl?: Interface): [string[], string] {
                     });
 
                 if (matches.length === 0) {
-                    process.stdout.write("\x07");
                     return [[], partial];
                 }
 
@@ -150,7 +147,8 @@ export function completer(line: string, rl?: Interface): [string[], string] {
         // Ignore errors (e.g. permission denied, invalid path)
     }
 
-    process.stdout.write("\x07");
+    // No completion available. A real terminal rings the bell here; writing the
+    // BEL byte would put a stray \x07 on stdout, so stay silent instead.
     return [[], partial];
   }
 }

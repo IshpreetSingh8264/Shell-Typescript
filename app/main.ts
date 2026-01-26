@@ -3,7 +3,7 @@ import { tokenizer } from "./components/tokenizer";
 import { parser } from "./components/parser";
 import { dispatcher } from "./components/dispatcher";
 import { completer } from "./components/completer";
-import { addToHistory, markHistoryAsAppended, getNewHistory } from "./utils/history";
+import { addToHistory, getHistory, markHistoryAsAppended } from "./utils/history";
 import { getExitCode, isShutdownRequested, onShutdown, runShutdownHooks } from "./utils/shutdown";
 import fs from "fs";
 
@@ -30,9 +30,13 @@ if (histFile && fs.existsSync(histFile)) {
 function saveHistory() {
   if (histFile) {
     try {
-      const newHist = getNewHistory();
-      if (newHist.length > 0) {
-        fs.appendFileSync(histFile, newHist.join('\n') + '\n');
+      // writeFileSync, not appendFileSync: a pre-existing HISTFILE is rewritten,
+      // not appended to. Lines that were already in the file are still present
+      // because loadHistory() put them at the front of the in-memory history,
+      // so nothing is lost - but a stale/duplicated file is replaced.
+      const hist = getHistory();
+      if (hist.length > 0) {
+        fs.writeFileSync(histFile, hist.join('\n') + '\n');
         markHistoryAsAppended();
       }
     } catch (e) {
