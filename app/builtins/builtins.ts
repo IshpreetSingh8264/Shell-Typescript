@@ -1,12 +1,17 @@
 import { getHistory, addToHistory, getNewHistory, markHistoryAsAppended } from "../utils/history";
+import { requestShutdown } from "../utils/shutdown";
 import fs from "fs";
 
 export const builtInCommands: { [key: string]: (args: string[]) => void | Promise<void> } = {
     echo: (args: string[]) => {
         console.log(args.join(" "));
     },
-    exit: () => {
-        process.exit(0);
+    exit: (args: string[]) => {
+        // Request a graceful shutdown; main.ts performs it once the current
+        // command's output has drained. Calling process.exit() here would
+        // discard in-flight async writes.
+        const parsed = args.length > 0 ? Number.parseInt(args[0], 10) : 0;
+        requestShutdown(Number.isNaN(parsed) ? 0 : parsed);
     },
     history: (args: string[]) => {
         if (args.length > 0 && args[0] === '-r') {

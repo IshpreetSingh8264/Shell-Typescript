@@ -4,6 +4,7 @@ import { parser } from "./components/parser";
 import { dispatcher } from "./components/dispatcher";
 import { completer } from "./components/completer";
 import { addToHistory, markHistoryAsAppended, getNewHistory } from "./utils/history";
+import { getExitCode, isShutdownRequested, onShutdown, runShutdownHooks } from "./utils/shutdown";
 import fs from "fs";
 
 const rl: Interface = createInterface({
@@ -40,18 +41,52 @@ function saveHistory() {
   }
 }
 
-process.on('exit', () => {
-  saveHistory();
-});
+onShutdown(saveHistory);
 
-rl.setPrompt("$ ")
+// Fallback for paths that end the process without going through `exit`
+// (e.g. stdin reaching EOF): saveHistory is synchronous and idempotent.
+process.on('exit', saveHistory);
+
+rl.setPrompt("$ ");
 rl.prompt()
 
-rl.on('line', async (line) => {
-  addToHistory(line);
-  const tokens = tokenizer(line);
-  const commandStructure = parser(tokens);
-  await dispatcher(commandStructure);
-  rl.prompt()
-})
+/**
+ * readline emits every line of a pipe in a single tick, so an `async` handler
+ * would run all of them concurrently and interleave their output. Chaining each
+ * line onto the previous one keeps commands strictly sequential.
+ */
+let commandQueue: Promise<void> = Promise.resolve();
 
+rl.on('line', (line) => {
+  commandQueue = commandQueue.then(() => runLine(line));
+});
+
+async function runLine(line: string): Promise<void> {
+  if (isShutdownRequested()) return; // `exit` already ended the session
+  addToHistory(line);
+  try {
+    const commandStructure = parser(tokenizer(line));
+    await dispatcher(commandStructure);
+  } catch (e) {
+    console.error(`${(e as Error).message}`);
+  }
+  if (isShutdownRequested()) {
+    await shutdown();
+    return;
+  }
+  rl.prompt();
+}
+
+let didShutdown = false;
+
+async function shutdown(): Promise<void> {
+  if (didShutdown) return;
+  didShutdown = true;
+  await runShutdownHooks();
+  process.exitCode = getExitCode();
+  // Release the only handles keeping the loop alive so the process ends on its
+  // own. Ending it here (rather than process.exit) lets buffered stdout and
+  // redirect writes flush first.
+  rl.close();
+  process.stdin.pause();
+}
