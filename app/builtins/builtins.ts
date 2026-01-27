@@ -1,4 +1,5 @@
 import { getHistory, addToHistory, getNewHistory, markHistoryAsAppended } from "../utils/history";
+import { getVariable, hasVariable, isValidIdentifier, setVariable } from "../utils/shellVariables";
 import { requestShutdown } from "../utils/shutdown";
 import fs from "fs";
 
@@ -78,6 +79,34 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
 
         for (let i = startIndex; i < hist.length; i++) {
             console.log(`    ${i + 1}  ${hist[i]}`);
+        }
+    },
+    declare: (args: string[]) => {
+        const print = args[0] === "-p";
+
+        if (print) {
+            for (const name of args.slice(1)) {
+                if (!hasVariable(name)) {
+                    console.error(`declare: ${name}: not found`);
+                    continue;
+                }
+                console.log(`declare -- ${name}="${getVariable(name)}"`);
+            }
+            return;
+        }
+
+        for (const arg of args) {
+            // Split on the first '=' only: a value may itself contain '='.
+            const eq = arg.indexOf("=");
+            const name = eq === -1 ? arg : arg.slice(0, eq);
+            const value = eq === -1 ? "" : arg.slice(eq + 1);
+
+            if (!isValidIdentifier(name)) {
+                console.error(`declare: \`${arg}': not a valid identifier`);
+                continue;
+            }
+
+            setVariable(name, value);
         }
     },
     pwd:()=>{

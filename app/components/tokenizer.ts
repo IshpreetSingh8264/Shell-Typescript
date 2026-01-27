@@ -6,7 +6,28 @@
  
  */
 
+import { getVariable } from "../utils/shellVariables";
 
+/**
+ * Reads the variable reference that starts at `input[start]` (the `$`).
+ * Returns null when there is no reference there, so the caller can emit a
+ * literal `$` instead.
+ *
+ * `$NAME`   - NAME is [A-Za-z_][A-Za-z0-9_]*
+ * `${NAME}` - NAME is everything up to the closing brace
+ */
+function readVariableReference(input: string, start: number): { name: string; end: number } | null {
+    if (input[start + 1] === '{') {
+        const close = input.indexOf('}', start + 2);
+        // An unterminated ${...} is not a reference we can resolve.
+        if (close === -1 || close === start + 2) return null;
+        return { name: input.slice(start + 2, close), end: close + 1 };
+    }
+
+    const match = /^[A-Za-z_][A-Za-z0-9_]*/.exec(input.slice(start + 1));
+    if (!match) return null;
+    return { name: match[0], end: start + 1 + match[0].length };
+}
 
 export function tokenizer(input: string):string[] {
 
@@ -57,6 +78,50 @@ export function tokenizer(input: string):string[] {
                     continue;
                 }
             }
+        } else if (char === '$' && !inSingleQuote) {
+            // PARAMETER EXPANSION. Single quotes suppress it entirely; double
+            // quotes expand but suppress word splitting; unquoted it splits on
+            // whitespace and can vanish, taking its whole word with it.
+            // (A `\$` reached the backslash branch above, so it is already literal.)
+            const reference = readVariableReference(input, i);
+
+            if (reference === null) {
+                currentToken += '$'; // A lone '$' is just a dollar sign.
+                i++;
+                continue;
+            }
+
+            const value = getVariable(reference.name);
+            i = reference.end;
+
+            if (inDoubleQuote) {
+                currentToken += value; // No splitting, and "" stays a word.
+                continue;
+            }
+
+            const fields = value.split(/\s+/).filter(field => field.length > 0);
+
+            if (fields.length === 0) {
+                // Unset variable: contributes nothing. wasQuoted is untouched,
+                // so a word that was nothing but this reference is dropped.
+                continue;
+            }
+
+            // The value may hold several words; each becomes its own argument.
+            if (currentToken.length > 0) {
+                currentToken += fields[0];
+                for (let f = 1; f < fields.length; f++) {
+                    tokens.push(currentToken);
+                    currentToken = fields[f];
+                }
+            } else {
+                for (let f = 0; f < fields.length - 1; f++) {
+                    tokens.push(fields[f]);
+                }
+                currentToken = fields[fields.length - 1];
+            }
+            wasQuoted = false;
+            continue;
         } else if (!inSingleQuote && !inDoubleQuote) {
             // FREEDOM! We're not trapped in quotes, let's do normal stuff (I hated writing the quote logic ;-;)
             
