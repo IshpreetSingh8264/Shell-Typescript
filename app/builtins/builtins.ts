@@ -1,5 +1,6 @@
 import { getHistory, addToHistory, getNewHistory, markHistoryAsAppended } from "../utils/history";
 import { getVariable, hasVariable, isValidIdentifier, setVariable } from "../utils/shellVariables";
+import { reapForListing } from "../utils/jobs";
 import { requestShutdown } from "../utils/shutdown";
 import fs from "fs";
 
@@ -79,6 +80,14 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
 
         for (let i = startIndex; i < hist.length; i++) {
             console.log(`    ${i + 1}  ${hist[i]}`);
+        }
+    },
+    jobs: () => {
+        // Reaping happens here too, so a job that already exited is reported
+        // as Done exactly once - by `jobs` or by the pre-prompt hook, whichever
+        // comes first.
+        for (const line of reapForListing()) {
+            console.log(line);
         }
     },
     declare: (args: string[]) => {

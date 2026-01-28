@@ -4,6 +4,7 @@ import { parser } from "./components/parser";
 import { dispatcher } from "./components/dispatcher";
 import { completer } from "./components/completer";
 import { addToHistory, getHistory, markHistoryAsAppended } from "./utils/history";
+import { reapForPrompt } from "./utils/jobs";
 import { getExitCode, isShutdownRequested, onShutdown, runShutdownHooks } from "./utils/shutdown";
 import fs from "fs";
 
@@ -77,6 +78,11 @@ async function runLine(line: string): Promise<void> {
   if (isShutdownRequested()) {
     await shutdown();
     return;
+  }
+  // Announce jobs that finished since the last prompt, then prompt. The Done
+  // lines land between this command's output and the next "$ ".
+  for (const line of reapForPrompt()) {
+    console.log(line);
   }
   rl.prompt();
 }

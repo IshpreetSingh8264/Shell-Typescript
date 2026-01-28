@@ -1,6 +1,7 @@
 import { builtInCommands } from "../builtins/builtins";
 import type { CommandStructure } from "../types/types";
 import { execExternalCommand } from "../utils/execExternalCommand";
+import { addJob, nextJobId } from "../utils/jobs";
 import fs from "fs";
 import path from "path";
 import { createWriteStream } from "fs";
@@ -138,14 +139,28 @@ export async function dispatcher(commands: CommandStructure[]): Promise<void> {
             }
 
             try {
-                const { promise, child } = execExternalCommand(cmdStruct.command, cmdStruct.args, [spawnStdin, stdout, stderr]);
-                
+                const { promise, child } = execExternalCommand(
+                    cmdStruct.command,
+                    cmdStruct.args,
+                    [spawnStdin, stdout, stderr],
+                    !cmdStruct.background,
+                );
+
                 if (inputStreamToPipe && child.stdin) {
                     inputStreamToPipe.pipe(child.stdin);
                 }
 
-                promises.push(promise);
-                
+                if (cmdStruct.background) {
+                    // Register the job and report `[n] pid`, then return to the
+                    // prompt immediately without waiting for the child.
+                    const jobId = nextJobId();
+                    const pid = child.pid ?? 0;
+                    addJob(jobId, pid, [cmdStruct.command, ...cmdStruct.args].join(" "), child);
+                    console.log(`[${jobId}] ${pid}`);
+                } else {
+                    promises.push(promise);
+                }
+
                 if (pipingToNext) {
                     if (stdout === "pipe") {
                         previousStdout = child.stdout;

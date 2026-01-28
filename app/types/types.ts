@@ -8,4 +8,6 @@ export interface CommandStructure {
     command: string;
     args: string[];
     redirections: Redirection[];
+    /** True when the line ended in `&`, so the shell must not wait for it. */
+    background: boolean;
 }

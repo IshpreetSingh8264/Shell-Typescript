@@ -17,6 +17,14 @@ export function parser(tokens: string[]): CommandStructure[] {
     commands.push(parseSingleCommand(currentCommandTokens));
   }
 
+  // A trailing `&` is not an argument: it sends the command to the background.
+  // `&&` is a different token and is left alone.
+  const last = commands[commands.length - 1];
+  if (last && last.args[last.args.length - 1] === "&") {
+    last.args.pop();
+    last.background = true;
+  }
+
   return commands;
 }
 
@@ -50,5 +58,6 @@ function parseSingleCommand(tokens: string[]): CommandStructure {
     command: commandTokens[0],
     args: commandTokens.slice(1),
     redirections,
+    background: false,
   };
 }
