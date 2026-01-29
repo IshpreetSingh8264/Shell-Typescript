@@ -2,12 +2,16 @@ import fs from "fs";
 import path from "path";
 import { builtInCommands } from "../builtins/builtins";
 import { getExecutables } from "../utils/pathCache";
+import { currentAndPreviousWord, getCompletionSpec, runCompleter } from "../utils/completions";
 import type { Interface } from "readline";
 
 let lastLine = "";
 let tabCount = 0;
 
-// Helper to calculate common prefix
+// The course asks for an audible/visible bell by writing the BEL byte to stdout,
+// both when nothing matches and when a second TAB is needed to list candidates.
+const BELL = "\x07";
+
 function getCommonPrefix(strings: string[]): string {
     if (strings.length === 0) return "";
     let prefix = strings[0];
@@ -20,65 +24,55 @@ function getCommonPrefix(strings: string[]): string {
     return prefix;
 }
 
-export function completer(line: string, rl?: Interface): [string[], string] {
-  // Reset tab count if line changed
-  if (line !== lastLine) {
-      tabCount = 0;
-      lastLine = line;
-  }
-  tabCount++;
-
-  // Check if we are completing the first word (command) or subsequent words (arguments)
-  const isCommand = !line.trimStart().includes(" ");
-
-  if (isCommand) {
-    const partial = line.trimStart();
-    const builtins = Object.keys(builtInCommands);
-    const executables = Array.from(getExecutables());
-    
-    // Use a Set to deduplicate in case a builtin is also in PATH
-    const allCommands = Array.from(new Set([...builtins, ...executables]));
-
-    let matches = allCommands
-        .filter((c) => c.startsWith(partial))
-        .sort();
-
-    if (matches.length === 1) {
-        matches = matches.map(c => c + " ");
-    }
-
-    if (matches.length === 0) {
+/**
+ * Turns a candidate list into the answer readline needs. Every position -
+ * command word, file name, registered completer - resolves the same way:
+ *
+ *   none        ring the bell, change nothing
+ *   one         insert it (the caller has already added the trailing space)
+ *   several     insert their longest common prefix when that adds characters,
+ *               otherwise bell on the first TAB and list them, sorted and two
+ *               spaces apart, on the second
+ */
+function resolveCandidates(candidates: string[], partial: string, rl?: Interface): [string[], string] {
+    if (candidates.length === 0) {
+        process.stdout.write(BELL);
         return [[], partial];
     }
 
-    if (matches.length > 1) {
-        const commonPrefix = getCommonPrefix(matches);
-        // If we can extend the current partial, let readline do it (it will auto-complete to common prefix)
-        if (commonPrefix.length > partial.length) {
-            return [matches, partial];
-        }
-        
-        // If we are already at the common prefix, we need the double-tab logic
-        if (tabCount === 1) {
-            return [[], partial]; // Return empty to suppress default list behavior
-        }
-        
-        // On second tab, print matches manually and redraw prompt
-        process.stdout.write("\n");
-        process.stdout.write(matches.join("  "));
-        process.stdout.write("\n");
-        
-        rl?.prompt(true);
-        
+    if (candidates.length === 1) {
+        // The word is finished, so separate it from the next one. Directories
+        // already end in "/" and must not gain a space.
+        const only = candidates[0].endsWith("/") ? candidates[0] : candidates[0] + " ";
+        return [[only], partial];
+    }
+
+    const commonPrefix = getCommonPrefix(candidates);
+    if (commonPrefix.length > partial.length) {
+        // Let readline extend the line to the common prefix.
+        return [candidates, partial];
+    }
+
+    if (tabCount === 1) {
+        process.stdout.write(BELL);
         return [[], partial];
     }
 
-    return [matches, partial];
-  } else {
-    // Argument completion (File paths)
-    const lastSpaceIndex = line.lastIndexOf(" ");
-    const partial = line.substring(lastSpaceIndex + 1);
+    process.stdout.write("\n");
+    process.stdout.write([...candidates].sort().join("  "));
+    process.stdout.write("\n");
+    rl?.prompt(true);
+    return [[], partial];
+}
 
+/** Candidates for the command word: builtins plus everything executable in PATH. */
+function commandCandidates(partial: string): string[] {
+    const all = new Set([...Object.keys(builtInCommands), ...getExecutables()]);
+    return Array.from(all).filter(name => name.startsWith(partial)).sort();
+}
+
+/** Candidates for an argument: entries in the directory being completed. */
+function pathCandidates(partial: string): string[] {
     let searchDir: string;
     let filePrefix: string;
 
@@ -91,64 +85,67 @@ export function completer(line: string, rl?: Interface): [string[], string] {
     }
 
     try {
-        // Handle ~ expansion for completion if needed, but let's stick to basic paths first
-        // If searchDir is empty or dot, we use "."
         const effectiveDir = (searchDir === "." || searchDir === "") ? "." : searchDir;
-
-        if (fs.existsSync(effectiveDir)) {
-            const stats = fs.statSync(effectiveDir);
-            if (stats.isDirectory()) {
-                const files = fs.readdirSync(effectiveDir, { withFileTypes: true });
-                const matches = files
-                    .filter(f => f.name.startsWith(filePrefix))
-                    .map(f => {
-                        let name = f.name;
-                        if (f.isDirectory()) {
-                            name += "/";
-                        } else {
-                            name += " ";
-                        }
-                        
-                        // Reconstruct the full path relative to the partial input
-                        if (searchDir === "." || searchDir === "") {
-                            return name;
-                        } else {
-                            // Ensure we join correctly with the user's input directory
-                            // If user typed "app/", searchDir is "app/". join("app/", "main.ts") -> "app/main.ts"
-                            // If user typed "app/co", searchDir is "app". join("app", "components/") -> "app/components/"
-                            const joined = path.join(searchDir, name);
-                            return joined.split(path.sep).join("/"); // Normalize to forward slashes
-                        }
-                    });
-
-                if (matches.length === 0) {
-                    return [[], partial];
-                }
-
-                if (matches.length > 1) {
-                    // For arguments, we might want similar behavior, but the requirement was specific to executables.
-                    // However, consistent behavior is good.
-                    // But let's stick to the requirement for executables first.
-                    // If we want to apply it to arguments too:
-                    /*
-                    const commonPrefix = getCommonPrefix(matches);
-                    // Note: matches here are full paths or names, we need to be careful.
-                    // But readline handles the prefix logic based on the returned array.
-                    // If we return matches, readline calculates common prefix of the returned strings.
-                    
-                    // Let's just return matches for arguments for now as per previous stage.
-                    */
-                }
-
-                return [matches, partial];
-            }
+        if (!fs.existsSync(effectiveDir) || !fs.statSync(effectiveDir).isDirectory()) {
+            return [];
         }
-    } catch (e) {
-        // Ignore errors (e.g. permission denied, invalid path)
+
+        return fs.readdirSync(effectiveDir, { withFileTypes: true })
+            .filter(entry => entry.name.startsWith(filePrefix))
+            .map(entry => {
+                // Directories keep their trailing slash; resolveCandidates adds
+                // the separating space to files when there is a single match.
+                const name = entry.isDirectory() ? entry.name + "/" : entry.name;
+                if (searchDir === "." || searchDir === "") {
+                    return name;
+                }
+                // If the user typed "app/co", searchDir is "app" and this
+                // rebuilds "app/components/".
+                return path.join(searchDir, name).split(path.sep).join("/");
+            });
+    } catch {
+        // Permission denied, invalid path, race with a disappearing file.
+        return [];
+    }
+}
+
+/**
+ * Completion driven by a script registered with `complete -C`. Returns null
+ * when the line's command word has no such specification, so completion falls
+ * through to the built-in behaviour.
+ */
+function programmableCandidates(line: string): { candidates: string[]; partial: string } | null {
+    const command = line.trimStart().split(/\s/)[0];
+    if (command === undefined) return null;
+
+    const script = getCompletionSpec(command);
+    if (script === undefined) return null;
+
+    const { current, previous } = currentAndPreviousWord(line);
+    const candidates = runCompleter(script, command, current, previous, line);
+
+    return { candidates, partial: current };
+}
+
+export function completer(line: string, rl?: Interface): [string[], string] {
+    // Reset tab count if line changed
+    if (line !== lastLine) {
+        tabCount = 0;
+        lastLine = line;
+    }
+    tabCount++;
+
+    const programmable = programmableCandidates(line);
+    if (programmable !== null) {
+        return resolveCandidates(programmable.candidates, programmable.partial, rl);
     }
 
-    // No completion available. A real terminal rings the bell here; writing the
-    // BEL byte would put a stray \x07 on stdout, so stay silent instead.
-    return [[], partial];
-  }
+    // Completing the first word means a command name; anything else is a path.
+    if (!line.trimStart().includes(" ")) {
+        const partial = line.trimStart();
+        return resolveCandidates(commandCandidates(partial), partial, rl);
+    }
+
+    const partial = line.slice(line.lastIndexOf(" ") + 1);
+    return resolveCandidates(pathCandidates(partial), partial, rl);
 }

@@ -1,6 +1,7 @@
 import { getHistory, addToHistory, getNewHistory, markHistoryAsAppended } from "../utils/history";
 import { getVariable, hasVariable, isValidIdentifier, setVariable } from "../utils/shellVariables";
 import { reapForListing } from "../utils/jobs";
+import { getCompletionSpec, registerCompletion, unregisterCompletion } from "../utils/completions";
 import { requestShutdown } from "../utils/shutdown";
 import fs from "fs";
 
@@ -80,6 +81,39 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
 
         for (let i = startIndex; i < hist.length; i++) {
             console.log(`    ${i + 1}  ${hist[i]}`);
+        }
+    },
+    complete: (args: string[]) => {
+        const flag = args[0];
+
+        if (flag === "-p") {
+            for (const command of args.slice(1)) {
+                const script = getCompletionSpec(command);
+                if (script === undefined) {
+                    console.error(`complete: ${command}: no completion specification`);
+                    continue;
+                }
+                // Reconstructed from the stored values, not echoed back, so
+                // `complete   -C   /p   git` still prints a normalised line.
+                console.log(`complete -C '${script}' ${command}`);
+            }
+            return;
+        }
+
+        if (flag === "-C") {
+            const script = args[1];
+            if (script === undefined) return;
+            for (const command of args.slice(2)) {
+                registerCompletion(command, script);
+            }
+            return;
+        }
+
+        if (flag === "-r") {
+            // Removing a rule that was never registered is not an error.
+            for (const command of args.slice(1)) {
+                unregisterCompletion(command);
+            }
         }
     },
     jobs: () => {
