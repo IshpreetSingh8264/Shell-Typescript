@@ -32,9 +32,9 @@ function saveHistory() {
   if (histFile) {
     try {
       // writeFileSync, not appendFileSync: a pre-existing HISTFILE is rewritten,
-      // not appended to. Lines that were already in the file are still present
-      // because loadHistory() put them at the front of the in-memory history,
-      // so nothing is lost - but a stale/duplicated file is replaced.
+      // not appended to. Nothing is lost, because startup put the file's lines
+      // at the front of the in-memory history - so this appends the session's
+      // new commands while still replacing a stale or duplicated file.
       const hist = getHistory();
       if (hist.length > 0) {
         fs.writeFileSync(histFile, hist.join('\n') + '\n');
@@ -81,8 +81,8 @@ async function runLine(line: string): Promise<void> {
   }
   // Announce jobs that finished since the last prompt, then prompt. The Done
   // lines land between this command's output and the next "$ ".
-  for (const line of reapForPrompt()) {
-    console.log(line);
+  for (const entry of reapForPrompt()) {
+    console.log(entry);
   }
   rl.prompt();
 }
