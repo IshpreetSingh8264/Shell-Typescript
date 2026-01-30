@@ -4,6 +4,7 @@ import { reapForListing } from "../utils/jobs";
 import { getCompletionSpec, registerCompletion, unregisterCompletion } from "../utils/completions";
 import { requestShutdown } from "../utils/shutdown";
 import fs from "fs";
+import path from "path";
 
 export const builtInCommands: { [key: string]: (args: string[]) => void | Promise<void> } = {
     echo: (args: string[]) => {
@@ -182,11 +183,7 @@ export const builtInCommands: { [key: string]: (args: string[]) => void | Promis
             console.log(`${command} is a shell builtin`);
             return;
         }
-        const PATH = process.env.PATH || "";
-        const directories = PATH.split(require('path').delimiter);
-        const fs = require('fs');
-        const path = require('path');
-        for (const dir of directories) {
+        for (const dir of (process.env.PATH || "").split(path.delimiter)) {
             const fullPath = path.join(dir, command);
             try {
                 fs.accessSync(fullPath, fs.constants.X_OK);

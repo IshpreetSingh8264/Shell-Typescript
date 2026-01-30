@@ -71,6 +71,15 @@ function commandCandidates(partial: string): string[] {
     return Array.from(all).filter(name => name.startsWith(partial)).sort();
 }
 
+/**
+ * Escapes the characters that would otherwise split the name into a second word
+ * when the line is submitted. A file called `my report.txt` has to come back as
+ * `my\ report.txt `, otherwise re-running the line would pass two arguments.
+ */
+function escapeCompletion(name: string): string {
+    return name.replace(/([ \t\\'"$&|;<>()*?[\]#~])/g, "\\$1");
+}
+
 /** Candidates for an argument: entries in the directory being completed. */
 function pathCandidates(partial: string): string[] {
     let searchDir: string;
@@ -97,11 +106,11 @@ function pathCandidates(partial: string): string[] {
                 // the separating space to files when there is a single match.
                 const name = entry.isDirectory() ? entry.name + "/" : entry.name;
                 if (searchDir === "." || searchDir === "") {
-                    return name;
+                    return escapeCompletion(name);
                 }
                 // If the user typed "app/co", searchDir is "app" and this
                 // rebuilds "app/components/".
-                return path.join(searchDir, name).split(path.sep).join("/");
+                return escapeCompletion(path.join(searchDir, name).split(path.sep).join("/"));
             });
     } catch {
         // Permission denied, invalid path, race with a disappearing file.

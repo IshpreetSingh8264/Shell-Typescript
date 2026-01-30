@@ -2,14 +2,17 @@ import fs from "fs";
 import path from "path";
 
 let executableCache: Set<string> | null = null;
+// The PATH the cache was built from. If PATH changes, the cache is stale.
+let cachedPathEnv: string | null = null;
 
 export function getExecutables(): Set<string> {
-  if (executableCache) {
+  const pathEnv = process.env.PATH || "";
+  if (executableCache && cachedPathEnv === pathEnv) {
     return executableCache;
   }
 
   executableCache = new Set();
-  const pathEnv = process.env.PATH || "";
+  cachedPathEnv = pathEnv;
   const directories = pathEnv.split(path.delimiter);
 
   for (const dir of directories) {
