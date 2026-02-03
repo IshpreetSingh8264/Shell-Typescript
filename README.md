@@ -1,133 +1,234 @@
-# 🐚 TypeScript Shell
+# Shell — TypeScript
 
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
-![Bun](https://img.shields.io/badge/Bun-000000?style=for-the-badge&logo=bun&logoColor=white)
-![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)
+A POSIX-flavoured command shell written in TypeScript, running on [Bun](https://bun.sh/).
 
-A robust, POSIX-compliant shell implementation built entirely in **TypeScript**. This project demonstrates advanced concepts in language processing, system interaction, and process management, serving as a powerful addition to any developer's toolkit.
+Built for the [CodeCrafters "Build your own Shell"](https://codecrafters.io/challenges/shell) course, then hardened: a
+serialised command loop, graceful shutdown that does not truncate in-flight output, background job tracking, and
+programmable completion.
 
-## 🚀 Introduction
+> **Scope note.** This is a teaching shell that implements the feature set the course asks for. It is *not* a drop-in
+> replacement for `bash` — see [Not implemented](#not-implemented) for the honest list of gaps.
 
-This shell is designed to be a lightweight yet feature-rich command-line interpreter. It supports standard shell functionalities like command execution, piping, I/O redirection, and persistent history, all while maintaining a clean and modular codebase. Whether you're exploring shell internals or need a custom shell environment, this project provides a solid foundation.
+## Contents
 
-## ✨ Key Features
+- [Quick start](#quick-start)
+- [Features](#features)
+- [Built-in commands](#built-in-commands)
+- [Syntax](#syntax)
+- [Architecture](#architecture)
+- [Project layout](#project-layout)
+- [Testing](#testing)
+- [Not implemented](#not-implemented)
+- [Code style](#code-style)
 
-- **Built-in Commands**: Essential commands like `cd`, `pwd`, `echo`, `type`, `exit`, and `history` are implemented natively.
-- **I/O Redirection**: Full support for standard output and error redirection:
-  - `>` : Overwrite output to a file.
-  - `>>`: Append output to a file.
-  - `2>`: Overwrite standard error to a file.
-  - `2>>`: Append standard error to a file.
-- **Piping**: Chain commands together using `|` to pass output from one process as input to another.
-- **Persistent History**:
-  - Maintains a history of commands across sessions.
-  - Supports `HISTFILE` environment variable.
-  - `history` command with flags `-r` (read), `-w` (write), and `-a` (append).
-- **Autocompletion**: Intelligent tab completion for built-in commands and executables in your `$PATH`.
-- **External Execution**: Seamlessly executes any external program available in your system's path.
-- **Robust Parsing**: Handles complex command structures, including quoted strings (single `'` and double `"`), escape characters, and comments (`#`).
+## Quick start
 
-## 🏗️ Architecture
+Requires [Bun](https://bun.sh/) 1.2 or newer. There is no build step — TypeScript is executed directly.
 
-The shell follows a modular, layered architecture to ensure separation of concerns and maintainability.
-
-```mermaid
-graph TD
-    A[User Input] --> B(Tokenizer)
-    B --> C(Parser)
-    C --> D{Dispatcher}
-    D -->|Built-in| E[Built-in Executor]
-    D -->|External| F[External Process Executor]
-    E --> G[Output / Side Effects]
-    F --> G
-    
-    subgraph "Core Components"
-    B
-    C
-    D
-    end
-    
-    subgraph "Execution Layer"
-    E
-    F
-    end
+```bash
+bun install          # only devDependency is @types/bun
+./your_program.sh    # builds nothing, just runs the shell
 ```
 
-### Component Breakdown
+Or directly:
 
-1.  **Tokenizer (`app/components/tokenizer.ts`)**: Breaks raw input strings into meaningful tokens, handling whitespace, quotes, and special characters.
-2.  **Parser (`app/components/parser.ts`)**: Analyzes tokens to construct a structured command object, identifying commands, arguments, and redirections.
-3.  **Dispatcher (`app/components/dispatcher.ts`)**: Orchestrates execution. It determines if a command is a built-in or external program and manages pipes and redirections.
-4.  **Executor (`app/utils/execExternalCommand.ts`)**: Uses Node.js `child_process` to spawn external processes.
-
-## 🛠️ Installation & Usage
-
-### Prerequisites
-
-- **[Bun](https://bun.sh/)** (v1.2 or later) is required to run this project.
-
-### Getting Started
-
-1.  **Clone the repository:**
-    ```bash
-    git clone https://github.com/yourusername/typescript-shell.git
-    cd typescript-shell
-    ```
-
-2.  **Install dependencies:**
-    ```bash
-    bun install
-    ```
-
-3.  **Run the shell:**
-    ```bash
-    ./your_program.sh
-    ```
-
-## 📖 Supported Commands
-
-| Command | Description | Usage Example |
-| :--- | :--- | :--- |
-| `cd` | Change the current working directory. | `cd /path/to/dir` or `cd ~` |
-| `pwd` | Print the current working directory. | `pwd` |
-| `echo` | Display a line of text. | `echo "Hello World"` |
-| `type` | Display information about command type. | `type ls` |
-| `history` | View or manipulate command history. | `history` or `history -a my_history.txt` |
-| `exit` | Exit the shell. | `exit` |
-
-## 📂 Project Structure
-
-```
-.
-├── app/
-│   ├── main.ts                 # Entry point
-│   ├── builtins/               # Built-in command implementations
-│   │   └── builtins.ts
-│   ├── components/             # Core logic
-│   │   ├── tokenizer.ts        # Lexical analysis
-│   │   ├── parser.ts           # Syntax analysis
-│   │   ├── dispatcher.ts       # Command routing
-│   │   └── completer.ts        # Tab completion
-│   ├── utils/                  # Utilities
-│   │   ├── execExternalCommand.ts
-│   │   ├── history.ts
-│   │   └── pathCache.ts
-│   └── types/                  # TypeScript type definitions
-├── docs/                       # Documentation
-├── your_program.sh             # Startup script
-└── README.md                   # Project documentation
+```bash
+bun run app/main.ts
 ```
 
-## 🤝 Contributing
+```
+$ echo "hello from the shell"
+hello from the shell
+$ type ls
+ls is /usr/bin/ls
+$ declare NAME=world && echo $NAME
+world
+$ echo one two three > out.txt && cat out.txt
+one two three
+$ sleep 30 &
+[1] 4242
+$ jobs
+[1]+  Running                 sleep 30 &
+```
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+## Features
 
-1.  Fork the project
-2.  Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3.  Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4.  Push to the branch (`git push origin feature/AmazingFeature`)
-5.  Open a Pull Request
+**Command execution**
+- Nine built-in commands, dispatched from a registry object.
+- Any executable on `$PATH`, spawned directly — no wrapper shell in between.
+- Multi-stage pipelines (`a | b | c`) with real OS pipes between external commands.
+- Background jobs with `&`, a job table, and reaping on prompt return.
 
----
+**Redirection**
 
-Built with ❤️ using TypeScript and Bun.
+| Form | Effect |
+|---|---|
+| `>` / `1>` | truncate stdout to a file |
+| `>>` / `1>>` | append stdout to a file |
+| `2>` | truncate stderr to a file |
+| `2>>` | append stderr to a file |
+
+Redirection targets are created with their parent directories, so `> out/nested/file.txt` works.
+
+**Quoting and expansion**
+- Single quotes (fully literal), double quotes (selective escapes, variable expansion active), and backslash escaping
+  outside quotes.
+- `$VAR` and `${VAR}` expansion, with POSIX-style word splitting when unquoted.
+- `#` comments when `#` starts a word.
+- Unterminated quotes are reported rather than silently swallowed.
+
+**Completion**
+- Command-name completion over built-ins plus `$PATH` executables.
+- Filename completion, including nested paths and directories (with a trailing `/`).
+- Longest-common-prefix completion on a single tab; sorted candidate list on repeated tabs; a bell when there is no
+  unique match.
+- Programmable completion: `complete -C <script> <command>` runs an external script and reads candidates from its
+  stdout, with `COMP_LINE` and `COMP_POINT` exported.
+
+**History**
+- In-memory history, plus persistence to `$HISTFILE` when that variable is set.
+- `history`, `history N`, `history -r FILE`, `history -w FILE`, `history -a FILE`.
+- Arrow-key recall comes free from `readline` — there is deliberately no `setRawMode` in this codebase, because it
+  would break it.
+
+**Robustness**
+- Commands are serialised through a promise chain, so piped input cannot interleave output from concurrent commands.
+- `exit` requests shutdown and lets the event loop drain, instead of calling `process.exit()` and discarding buffered
+  stdout.
+
+## Built-in commands
+
+| Command | Description |
+|---|---|
+| `cd [dir]` | Change directory. Bare `~` and no-argument (→ `$HOME`) are supported. |
+| `complete -C SCRIPT CMD` | Register a programmable completion script for `CMD`. |
+| `complete -p CMD...` | Print the completion specification registered for `CMD`. |
+| `complete -r CMD...` | Remove a completion specification. |
+| `declare NAME=VALUE` | Set a shell variable. |
+| `declare -p NAME...` | Print `declare -- NAME="VALUE"` for each variable. |
+| `echo [args...]` | Print arguments joined by a space. |
+| `exit [code]` | Request shutdown with an exit code (default `0`). |
+| `history [N]` | Print all history, or the last `N` entries. |
+| `history -r FILE` | Read history from `FILE`. |
+| `history -w FILE` | Rewrite `FILE` with the entire history. |
+| `history -a FILE` | Append only entries not previously appended. |
+| `jobs` | List background jobs and their state. |
+| `pwd` | Print the working directory. |
+| `type NAME` | Report whether `NAME` is a built-in, and if not, its full path on `$PATH`. |
+
+`declare` variables live in a `Map` inside `app/utils/shellVariables.ts`, deliberately *not* in `process.env`, so that
+`declare -p` can print a shell-style declaration rather than `declare -x`.
+
+## Syntax
+
+The tokenizer is a single-pass character scanner. Operator matching is longest-first, so `2>>` is never mistaken for
+`2>` followed by `>`.
+
+```bash
+echo 'single quotes: $NOT_EXPANDED \n | > # all literal'
+echo "double quotes: $EXPANDED, escapes are \\ \" \$ only"
+echo escaped\ space          # one argument: "escaped space"
+echo $HOME/sub              # expands, then concatenates
+echo a$UNSET                # "a" — the word survives even though the variable is empty
+```
+
+Inside double quotes the only recognised escapes are `\\`, `\"` and `\$`. Any other `\X` is kept literally, which is
+POSIX behaviour but worth knowing.
+
+Unquoted expansion splits on whitespace and drops empty fields. A word consisting *only* of an unset variable
+disappears; a word with a literal prefix (`a$UNSET`) does not.
+
+## Architecture
+
+```
+stdin ──► readline (prompt, completion, arrow keys)
+            │
+            ▼
+          tokenizer ──► parser ──► dispatcher ──┬──► built-in registry
+          (quoting,     (pipes,   (stdio      │
+           expansion,   redirects, wiring)     └──► spawn() → external process
+           operators)   & jobs)
+```
+
+Four functions carry the whole design, and each lives in its own file:
+
+| Stage | File | Responsibility |
+|---|---|---|
+| Tokenizer | `app/components/tokenizer.ts` | Characters → tokens. Owns quoting, escaping, comments, and `$VAR` expansion. |
+| Parser | `app/components/parser.ts` | Tokens → `CommandStructure[]`, one per pipeline stage. Owns redirection and `&`. |
+| Dispatcher | `app/components/dispatcher.ts` | Wires stdio, runs built-ins or spawns processes, tracks jobs. |
+| Executor | `app/utils/execExternalCommand.ts` | `spawn()` wrapper; returns `{ promise, child }`. |
+
+Two decisions are worth calling out because they are easy to get wrong:
+
+**Built-ins are routed through `console.log` / `console.error`.** The dispatcher monkey-patches both for the duration of
+a built-in call so that redirection and piping work uniformly whether the command is built in or external, then
+restores them in a `finally`. A consequence: `util.format`-style `%s` substitution is unavailable while a built-in runs.
+
+**`exit` does not call `process.exit()`.** It sets a flag via `app/utils/shutdown.ts`; the main loop notices, runs the
+registered shutdown hooks (currently: save history), sets `process.exitCode`, and closes readline so the event loop
+drains naturally. Calling `process.exit()` directly used to lose whatever the previous command was still writing.
+
+## Project layout
+
+```
+app/
+  main.ts                     REPL, prompt, history load/save, shutdown
+  builtins/builtins.ts        the built-in command registry
+  components/
+    tokenizer.ts              characters → tokens
+    parser.ts                 tokens → pipeline stages
+    dispatcher.ts             execution and stdio wiring
+    completer.ts              tab completion policy
+  types/types.ts              CommandStructure, Redirection
+  utils/
+    completions.ts            programmable completion registry
+    execExternalCommand.ts    spawn() wrapper
+    history.ts                in-memory history
+    jobs.ts                   background job table
+    pathCache.ts              $PATH scan for completion
+    shellVariables.ts         declare / $VAR storage
+    shutdown.ts               graceful shutdown protocol
+docs/design.md                design notes
+your_program.sh               local run script
+```
+
+## Testing
+
+There is no automated test suite in this repository — tab completion and history navigation in particular need a real
+pty, so they are exercised manually. The graded check is the CodeCrafters tester, which runs remotely:
+
+```bash
+codecrafters test
+```
+
+To drive the shell by hand, run it under a terminal rather than a pipe; piped stdin does not trigger completion or
+arrow-key history.
+
+## Not implemented
+
+Deliberately out of scope, listed so the gaps are explicit:
+
+- **Input redirection** (`< file`) and here-documents (`<<`). These tokenize but are not consumed by the parser, so they
+  end up as literal arguments.
+- **Operators** `;`, `&&`, `||`. Tokenized, never executed.
+- **Globbing** — `*`, `?`, `[...]`, `~` expansion, brace expansion. `echo *.ts` prints `*.ts`.
+- **Command substitution** — `$(...)`, backticks, `$'...'`.
+- **Advanced parameter expansion** — `${VAR:-default}`, `${#VAR}`, `${VAR/pat/rep}`. Positional parameters (`$1`, `$@`)
+  and `$?` are printed literally.
+- **Job control** — `fg`, `bg`, `kill`, `wait`, `%1` specs.
+- **`export`, `unset`, `env`, `alias`**, and the rest of the usual built-in set.
+
+## Code style
+
+Comments in the source are written in Pinglish — Punjabi in Latin script, with an English gloss in parentheses. It is the
+consistent voice of this project and is worth preserving when you edit.
+
+```ts
+// Oye, redirection da target pehlan hi bana dena, taaki missing folder na rok laye
+fs.mkdirSync(path.dirname(target), { recursive: true });
+```
+
+## Licence
+
+No licence file is present in this repository. Add one before redistributing.
